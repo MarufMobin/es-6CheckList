@@ -1,0 +1,606 @@
+Arrow functions in ES2015 provide a more concise syntax.
+
+Can I replace all my function declarations / expressions with arrow functions now?
+What do I have to look out for?
+Examples:
+
+Constructor function
+
+function User(name) {
+  this.name = name;
+}
+
+// vs
+
+const User = name => {
+  this.name = name;
+};
+Prototype methods
+
+User.prototype.getName = function() {
+  return this.name;
+};
+
+// vs
+
+User.prototype.getName = () => this.name;
+Object (literal) methods
+
+const obj = {
+  getName: function() {
+    // ...
+  }
+};
+
+// vs
+
+const obj = {
+  getName: () => {
+    // ...
+  }
+};
+Callbacks
+
+setTimeout(function() {
+  // ...
+}, 500);
+
+// vs
+
+setTimeout(() => {
+  // ...
+}, 500);
+Variadic functions
+
+function sum() {
+  let args = [].slice.call(arguments);
+  // ...
+}
+
+// vs
+const sum = (...args) => {
+  // ...
+};
+javascript
+ecmascript-6
+arrow-functions
+Share
+Improve this question
+Follow
+edited Sep 20 '20 at 17:45
+
+jarmod
+49.2k99 gold badges8585 silver badges8787 bronze badges
+asked Dec 18 '15 at 17:58
+
+Felix Kling
+719k164164 gold badges10151015 silver badges10811081 bronze badges
+7
+Similar questions about arrow functions have come up more and more with ES2015 becoming more popular. I didn't feel like there was a good canonical question/answer for this issue so I created this one. If you think that there already is a good one, please let me know and I will close this one as duplicate or delete it. Feel free to improve the examples or add new ones. – Felix Kling Dec 18 '15 at 17:59 
+2
+What about JavaScript ecma6 change normal function to arrow function? Of course, a normal question can never be as good and generic as one specifically written to be a canonical. – Bergi Dec 18 '15 at 23:53
+Look at this Plnkr example The variable this is very different timesCalled increments only by 1 each time the button is called. Which answers my personal question: .click( () => { } ) and .click(function() { }) both create the same number of functions when used in a loop as you can see from the Guid count in the Plnkr. – jmbmage Sep 12 '16 at 14:01
+Related post - When should I use Arrow functions in ECMAScript 6? – RBT Jun 26 '19 at 8:36
+Related: How does the “this” keyword work?. – Sebastian Simon Jun 21 at 6:43
+Add a comment
+3 Answers
+
+897
+
++50
+tl;dr: No! Arrow functions and function declarations / expressions are not equivalent and cannot be replaced blindly.
+If the function you want to replace does not use this, arguments and is not called with new, then yes.
+
+As so often: it depends. Arrow functions have different behavior than function declarations / expressions, so let's have a look at the differences first:
+
+1. Lexical this and arguments
+
+Arrow functions don't have their own this or arguments binding. Instead, those identifiers are resolved in the lexical scope like any other variable. That means that inside an arrow function, this and arguments refer to the values of this and arguments in the environment the arrow function is defined in (i.e. "outside" the arrow function):
+
+// Example using a function expression
+function createObject() {
+  console.log('Inside `createObject`:', this.foo);
+  return {
+    foo: 42,
+    bar: function() {
+      console.log('Inside `bar`:', this.foo);
+    },
+  };
+}
+
+createObject.call({foo: 21}).bar(); // override `this` inside createObject
+Expand snippet
+// Example using a arrow function
+function createObject() {
+  console.log('Inside `createObject`:', this.foo);
+  return {
+    foo: 42,
+    bar: () => console.log('Inside `bar`:', this.foo),
+  };
+}
+
+createObject.call({foo: 21}).bar(); // override `this` inside createObject
+Expand snippet
+In the function expression case, this refers to the object that was created inside the createObject. In the arrow function case, this refers to this of createObject itself.
+
+This makes arrow functions useful if you need to access the this of the current environment:
+
+// currently common pattern
+var that = this;
+getData(function(data) {
+  that.data = data;
+});
+
+// better alternative with arrow functions
+getData(data => {
+  this.data = data;
+});
+Note that this also means that is not possible to set an arrow function's this with .bind or .call.
+
+If you are not very familiar with this, consider reading
+
+MDN - this
+YDKJS - this & Object prototypes
+2. Arrow functions cannot be called with new
+
+ES2015 distinguishes between functions that are callable and functions that are constructable. If a function is constructable, it can be called with new, i.e. new User(). If a function is callable, it can be called without new (i.e. normal function call).
+
+Functions created through function declarations / expressions are both constructable and callable.
+Arrow functions (and methods) are only callable. class constructors are only constructable.
+
+If you are trying to call a non-callable function or to construct a non-constructable function, you will get a runtime error.
+
+Knowing this, we can state the following.
+
+Replaceable:
+
+Functions that don't use this or arguments.
+Functions that are used with .bind(this)
+Not replaceable:
+
+Constructor functions
+Function / methods added to a prototype (because they usually use this)
+Variadic functions (if they use arguments (see below))
+Generator functions, which require the function* notation
+Lets have a closer look at this using your examples:
+
+Constructor function
+
+This won't work because arrow functions cannot be called with new. Keep using a function declaration / expression or use class.
+
+Prototype methods
+
+Most likely not, because prototype methods usually use this to access the instance. If they don't use this, then you can replace it. However, if you primarily care for concise syntax, use class with its concise method syntax:
+
+class User {
+  constructor(name) {
+    this.name = name;
+  }
+  
+  getName() {
+    return this.name;
+  }
+}
+Object methods
+
+Similarly for methods in an object literal. If the method wants to reference the object itself via this, keep using function expressions, or use the new method syntax:
+
+const obj = {
+  getName() {
+    // ...
+  },
+};
+Callbacks
+
+It depends. You should definitely replace it if you are aliasing the outer this or are using .bind(this):
+
+// old
+setTimeout(function() {
+  // ...
+}.bind(this), 500);
+
+// new
+setTimeout(() => {
+  // ...
+}, 500);
+But: If the code which calls the callback explicitly sets this to a specific value, as is often the case with event handlers, especially with jQuery, and the callback uses this (or arguments), you cannot use an arrow function!
+
+Variadic functions
+
+Since arrow functions don't have their own arguments, you cannot simply replace them with an arrow function. However, ES2015 introduces an alternative to using arguments: the rest parameter.
+
+// old
+function sum() {
+  let args = [].slice.call(arguments);
+  // ...
+}
+
+// new
+const sum = (...args) => {
+  // ...
+};
+Related question:
+
+When should I use arrow functions in ECMAScript 6?
+Do ES6 arrow functions have their own arguments or not?
+What are the differences (if any) between ES6 arrow functions and functions bound with Function.prototype.bind?
+How to use arrow functions (public class fields) as class methods?
+Further resources:
+
+MDN - Arrow functions
+YDKJS - Arrow functions
+Share
+Improve this answer
+Follow
+edited Jun 9 at 10:56
+
+Nick Bull
+8,46866 gold badges2323 silver badges4343 bronze badges
+answered Dec 18 '15 at 17:58
+
+Felix Kling
+719k164164 gold badges10151015 silver badges10811081 bronze badges
+9
+Possibly worth mentioning that the lexical this also affects super and that they have no .prototype. – loganfsmyth Dec 18 '15 at 22:13
+1
+It would also be good to mention that they aren't syntactically interchangeable -- an arrow function (AssignmentExpression) can't just be dropped in everywhere a function expression (PrimaryExpression) can and it trips people up fairly frequently (especially since there've been parsing errors in major JS implementations). – JMM Apr 1 '16 at 22:49
+@JMM: "it trips people up fairly frequently" can you provide a concrete example? Skimming over the spec, it seems that the places where you can put a FE but not an AF would result in runtime errors anyway... – Felix Kling Apr 1 '16 at 22:54
+Sure, I mean stuff like trying to immediately invoke an arrow function like a function expression (() => {}()) or do something like x || () => {}. That's what I mean: runtime (parse) errors. (And even though that's the case, fairly frequently people think the error is in error.) Are you just trying to cover logic errors that would go unnoticed because they don't necessarily error when parsed or executed? new'ing one is a runtime error right? – JMM Apr 1 '16 at 23:27
+Here are some links of it coming up in the wild: substack/node-browserify#1499, babel/babel-eslint#245 (this is an async arrow, but I think it's the same basic issue), and a bunch of issues on Babel that are hard to find now, but here's one T2847. – JMM Apr 1 '16 at 23:27
+Show 15 more comments
+
+25
+
+Arrow functions => best ES6 feature so far. They are a tremendously powerful addition to ES6, that I use constantly.
+
+Wait, you can't use arrow function everywhere in your code, its not going to work in all cases like this where arrow functions are not usable. Without a doubt, the arrow function is a great addition it brings code simplicity.
+
+But you can’t use an arrow function when a dynamic context is required: defining methods, create objects with constructors, get the target from this when handling events.
+
+Arrow functions should NOT be used because:
+They do not have this
+
+It uses “lexical scoping” to figure out what the value of “this” should be. In simple word lexical scoping it uses “this” from the inside the function’s body.
+
+They do not have arguments
+
+Arrow functions don’t have an arguments object. But the same functionality can be achieved using rest parameters.
+
+let sum = (...args) => args.reduce((x, y) => x + y, 0) sum(3, 3, 1) // output - 7 `
+
+They cannot be used with new
+
+Arrow functions can't be construtors because they do not have a prototype property.
+
+When to use arrow function and when not:
+Don't use to add function as a property in object literal because we can not access this.
+Function expressions are best for object methods. Arrow functions are best for callbacks or methods like map, reduce, or forEach.
+Use function declarations for functions you’d call by name (because they’re hoisted).
+Use arrow functions for callbacks (because they tend to be terser).
+Share
+Improve this answer
+Follow
+edited Jun 20 '20 at 9:12
+
+Community♦
+111 silver badge
+answered Jan 9 '20 at 20:22
+
+Ashutosh
+71777 silver badges1919 bronze badges
+2
+the 2. They do not have arguments, I am sorry isn't true, one can have argument without use the ... operator, maybe you want to say that thy do not have array as argument – Carmine Tambascia Mar 2 '20 at 10:32 
+1
+@CarmineTambascia Read about the special arguments object which is not available in arrow functions here: developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/… – vichle Apr 16 '20 at 10:23
+Add a comment
+
+2
+
+To use arrow functions with function.prototype.call, I made a helper function on the object prototype:
+
+  // Using
+  // @func = function() {use this here} or This => {use This here}
+  using(func) {
+    return func.call(this, this);
+  }
+usage
+
+  var obj = {f:3, a:2}
+  .using(This => This.f + This.a) // 5
+Edit
+
+You don't NEED a helper. You could do:
+
+var obj = {f:3, a:2}
+(This => This.f + This.a).call(undefined, obj);
+
+
+/*  WEB Contant*/ 
+
+
+5 Differences Between Arrow and Regular Functions
+Updated March 19, 2021
+javascript
+function
+arrow function
+Comments18 Comments
+You can define JavaScript functions in many ways.
+
+The first, usual way, is by using the function keyword:
+
+// Function declaration
+function greet(who) {
+  return `Hello, ${who}!`;
+}
+// Function expression
+const greet = function(who) {
+  return `Hello, ${who}`;
+}
+The function declaration and function expression I’m going to reference as regular function.
+
+The second way, available starting ES2015, is the arrow function syntax:
+
+const greet = (who) => {
+  return `Hello, ${who}!`;
+}
+While both the regular and arrow syntaxes define functions, when would you choose one instead of another? That’s a good question.
+
+In this post, I’ll show the main differences between the two, so you could choose the right syntax for your needs.
+
+Table of Contents
+1. this value
+1.1 Regular function
+1.2 Arrow function
+2. Constructors
+2.1 Regular function
+2.2 Arrow function
+3. arguments object
+3.1 Regular function
+3.2 Arrow function
+4. Implicit return
+4.1 Regular function
+4.2 Arrow function
+5. Methods
+5.1 Regular function
+5.2 Arrow function
+6. Summary
+1. this value
+1.1 Regular function
+Inside of a regular JavaScript function, this value (aka the execution context) is dynamic.
+
+The dynamic context means that the value of this depends on how the function is invoked. In JavaScript, there are 4 ways you can invoke a regular function.
+
+During a simple invocation the value of this equals to the global object (or undefined if the function runs in strict mode):
+
+function myFunction() {
+  console.log(this);
+}
+
+// Simple invocation
+myFunction(); // logs global object (window)
+During a method invocation the value of this is the object owning the method:
+
+const myObject = {
+  method() {
+    console.log(this);
+  }
+};
+// Method invocation
+myObject.method(); // logs myObject
+During an indirect invocation using myFunc.call(thisVal, arg1, ..., argN) or myFunc.apply(thisVal, [arg1, ..., argN]) the value of this equals to the first argument:
+
+function myFunction() {
+  console.log(this);
+}
+
+const myContext = { value: 'A' };
+
+myFunction.call(myContext);  // logs { value: 'A' }
+myFunction.apply(myContext); // logs { value: 'A' }
+During a constructor invocation using new keyword this equals to the newly created instance:
+
+function MyFunction() {
+  console.log(this);
+}
+
+new MyFunction(); // logs an instance of MyFunction
+1.2 Arrow function
+The behavior of this inside of an arrow function differs considerably from the regular function’s this behavior. The arrow function doesn’t define its own execution context.
+
+No matter how or where being executed, this value inside of an arrow function always equals this value from the outer function. In other words, the arrow function resolves this lexically.
+
+In the following example, myMethod() is an outer function of callback() arrow function:
+
+const myObject = {
+  myMethod(items) {
+    console.log(this); // logs myObject
+    const callback = () => {
+      console.log(this); // logs myObject
+    };
+    items.forEach(callback);
+  }
+};
+
+myObject.myMethod([1, 2, 3]); 
+this value inside the arrow function callback() equals to this of the outer function myMethod().
+
+this resolved lexically is one of the great features of arrow functions. When using callbacks inside methods you are sure the arrow function doesn’t define its own this: no more const self = this or callback.bind(this) workarounds.
+
+Contrary to a regular function, the indirect invocation of an arrow function using myArrowFunc.call(thisVal) or myArrowFunc.apply(thisVal) doesn’t change the value of this: the context value is always resolved lexically.
+
+2. Constructors
+2.1 Regular function
+As seen in the previous section, the regular function can easily construct objects.
+
+For example, the new Car() function creates instances of a car:
+
+function Car(color) {
+  this.color = color;
+}
+
+const redCar = new Car('red');
+redCar instanceof Car; // => true
+Car is a regular function. When invoked with new keyword new Car('red') — new instances of Car type are created.
+
+2.2 Arrow function
+A consequence of this resolved lexically is that an arrow function cannot be used as a constructor.
+
+If you try to invoke an arrow function prefixed with new keyword, JavaScrip throws an error:
+
+const Car = (color) => {
+  this.color = color;
+};
+
+const redCar = new Car('red'); // TypeError: Car is not a constructor 
+Invoking new Car('red'), where Car is an arrow function, throws TypeError: Car is not a constructor.
+
+3. arguments object
+3.1 Regular function
+Inside the body of a regular function, arguments is a special array-like object containing the list of arguments with which the function has been invoked.
+
+Let’s invoke myFunction() function with 2 arguments:
+
+function myFunction() {
+  console.log(arguments);
+}
+
+myFunction('a', 'b'); // logs { 0: 'a', 1: 'b', length: 2 }
+Inside of myFunction() body the arguments is an array-like object containing the invocation arguments: 'a' and 'b'.
+
+3.2 Arrow function
+On the other side, no arguments special keyword is defined inside an arrow function.
+
+Again (same as with this value), the arguments object is resolved lexically: the arrow function accesses arguments from the outer function.
+
+Let’s try to access arguments inside of an arrow function:
+
+function myRegularFunction() {
+  const myArrowFunction = () => {
+    console.log(arguments);
+  }
+
+  myArrowFunction('c', 'd');
+}
+
+myRegularFunction('a', 'b'); // logs { 0: 'a', 1: 'b', length: 2 }
+The arrow function myArrowFunction() is invoked with the arguments 'c', 'd'. Still, inside of its body, arguments object equals to the arguments of myRegularFunction() invocation: 'a', 'b'.
+
+If you’d like to access the direct arguments of the arrow function, then you can use the rest parameters feature:
+
+function myRegularFunction() {
+  const myArrowFunction = (...args) => {
+    console.log(args);
+  }
+
+  myArrowFunction('c', 'd');
+}
+
+myRegularFunction('a', 'b'); // logs ['c', 'd']
+...args rest parameter collects the execution arguments of the arrow function: ['c', 'd'].
+
+4. Implicit return
+4.1 Regular function
+return expression statement returns the result from a function:
+
+function myFunction() {
+  return 42;
+}
+
+myFunction(); // => 42
+If the return statement is missing, or there’s no expression after return statement, the regular function implicitely returns undefined:
+
+function myEmptyFunction() {
+  42;
+}
+
+function myEmptyFunction2() {
+  42;
+  return;
+}
+
+myEmptyFunction();  // => undefined
+myEmptyFunction2(); // => undefined
+4.2 Arrow function
+You can return values from the arrow function the same way as from a regular function, but with one useful exception.
+
+If the arrow function contains one expression, and you omit the function’s curly braces, then the expression is implicitly returned. These are the inline arrows function.
+
+const increment = (num) => num + 1;
+
+increment(41); // => 42
+The increment() arrow consists of only one expression: num + 1. This expression is implicitly returned by the arrow function without the use of return keyword.
+
+5. Methods
+5.1 Regular function
+The regular functions are the usual way to define methods on classes.
+
+In the following class Hero, the method logName() is defined using a regular function:
+
+class Hero {
+  constructor(heroName) {
+    this.heroName = heroName;
+  }
+
+  logName() {
+    console.log(this.heroName);
+  }
+}
+
+const batman = new Hero('Batman');
+Usually, the regular functions as methods are the way to go.
+
+Sometimes you’d need to supply the method as a callback, for example to setTimeout() or an event listener. In such cases, you might encounter difficulties accessing this value.
+
+For example, let’s use use logName() method as a callback to setTimeout():
+
+setTimeout(batman.logName, 1000);
+// after 1 second logs "undefined"
+After 1 second, undefined is logged to console. setTimeout() performs a simple invocation of logName (where this is the global object). That’s when the method is separated from the object.
+
+Let’s bind this value manually to the right context:
+
+setTimeout(batman.logName.bind(batman), 1000);
+// after 1 second logs "Batman"
+batman.logName.bind(batman) binds this value to batman instance. Now you’re sure that the method doesn’t lose the context.
+
+Binding this manually requires boilerplate code, especially if you have lots of methods. There’s a better way: the arrow functions as a class field.
+
+5.2 Arrow function
+Thanks to Class fields proposal (at this moment at stage 3) you can use the arrow function as methods inside classes.
+
+Now, in contrast with regular functions, the method defined using an arrow binds this lexically to the class instance.
+
+Let’s use the arrow function as a field:
+
+class Hero {
+  constructor(heroName) {
+    this.heroName = heroName;
+  }
+
+  logName = () => {
+    console.log(this.heroName);
+  }
+}
+
+const batman = new Hero('Batman');
+Now you can use batman.logName as a callback without any manual binding of this. The value of this inside logName() method is always the class instance:
+
+setTimeout(batman.logName, 1000);
+// after 1 second logs "Batman"
+6. Summary
+Understanding the differences between regular and arrow functions helps choose the right syntax for specific needs.
+
+this value inside a regular function is dynamic and depends on the invocation. But this inside the arrow function is bound lexically and equals to this of the outer function.
+
+arguments object inside the regular functions contains the list of arguments. The arrow function, on the opposite, doesn’t define arguments (but you can easily access the arrow function arguments using a rest parameter ...args).
+
+If the arrow function has one expression, then the expression is returned implicitly, even without using the return keyword.
+
+Last but not least, you can define methods using the arrow function syntax inside classes. Fat arrow methods bind this value to the class instance.
+
+Anyhow the fat arrow method is invoked, this always equals the class instance, which is useful when the methods are used as callbacks.
+
+To understand all types of functions in JavaScript, I recommend checking 6 Ways to Declare JavaScript Functions.
+
+What other differences between arrow and regular functions do you know?
+
