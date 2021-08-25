@@ -14,11 +14,13 @@ const products = {
 // console.log(productAmount)
 // console.log(productPrice)
 let result = [];
-for( let i = 0; i < products.length; i++){
-    if( products.price == 550 ){
-        result.push(products)
-    }
+
+for( let i = 0; i > products.length; i++){
+    // if( products[i].productAmount == 550 ){
+    //     // result.push(productAmount)
+    //     console.log("yesssss")
+    // }
     console.log(i)
 }
 
-// console.log(result)
+//  console.log(result)

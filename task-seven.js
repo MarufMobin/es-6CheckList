@@ -15,29 +15,26 @@ const findValue = products.find( result => result.productPrice == 500 );
 
 // console.log(findValue)
 
-// const result = [];
-// for( let i = 0; i < products.length; i++ ){
-//     const amount =  products[i].productPrice;
-//     if( amount == 500 ){
-//         result.push(amount); 
-//         // console.log("Yesssss")
-//     }
-// }
-// console.log(result)
+const result = [];
+for( let i = 0; i < products.length; i++ ){
+    const amount =  products[i].productPrice;
+    if( amount == 500 ){
+        result.push(products[i]); 
+    }
+}
+console.log(result)
 
 let i = 0;
-const result = [];
+const ans = [];
 while( i < products.length){
  
     if( products[i].productPrice == 500 ){
-        result.push(products[i])
+        ans.push(products[i])
     }
-    // console.log(i)
-
     i++;
 }
-
-console.log(result)
+    
+// console.log(ans)
 
 // const productPrice = products.productPrice;
 // const {productPrice} = products;
